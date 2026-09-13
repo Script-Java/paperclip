@@ -1,0 +1,5 @@
+# Railway CLI upload rules (higher precedence than .gitignore).
+# .gitignore excludes server/src/**/*.d.ts as build artifacts, but this
+# hand-written Express type augmentation is force-tracked and required
+# by the server tsc build.
+!server/src/types/express.d.ts

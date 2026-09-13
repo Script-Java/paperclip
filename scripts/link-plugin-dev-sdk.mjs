@@ -78,7 +78,11 @@ export function linkSdkInto(packageDir) {
   try {
     const stat = lstatSync(linkTarget);
     if (stat.isSymbolicLink()) {
-      if (readlinkSync(linkTarget) === relativeSdkDir) {
+      // Compare resolved paths so both relative symlinks and absolute Windows
+      // junctions (see fallback below) are recognized as already linked.
+      let existingTarget = readlinkSync(linkTarget);
+      if (existingTarget.startsWith("\\\\?\\")) existingTarget = existingTarget.slice(4);
+      if (resolve(scopeDir, existingTarget) === sdkDir) {
         // Already linked to the in-repo SDK; nothing to do.
         return false;
       }
@@ -93,6 +97,13 @@ export function linkSdkInto(packageDir) {
     if (error?.code !== "ENOENT") throw error;
   }
 
-  symlinkSync(relativeSdkDir, linkTarget, "dir");
+  try {
+    symlinkSync(relativeSdkDir, linkTarget, "dir");
+  } catch (error) {
+    // Windows only allows directory symlinks with Developer Mode or elevation;
+    // junctions need neither, so fall back to one (target must be absolute).
+    if (process.platform !== "win32" || error?.code !== "EPERM") throw error;
+    symlinkSync(sdkDir, linkTarget, "junction");
+  }
   return true;
 }
