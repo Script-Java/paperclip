@@ -34,6 +34,9 @@ const TOOL_GATEWAY_WINDOWS: Record<string, number | null> = {
   all: null,
 };
 
+// Matches the ceiling the tool gateway service clamps every call budget to.
+const MCP_GATEWAY_TOOL_TIMEOUT_MS = 60_000;
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function gatewayToken(req: { header(name: string): string | undefined }) {
@@ -170,6 +173,10 @@ async function handleMcpGatewayProtocol(
         gatewayPublicId: locator.gatewayPublicId ?? null,
         tool: name,
         parameters: params.arguments ?? {},
+        // MCP clients have no way to request a per-call budget, and agent tools
+        // such as browser automation routinely run past the 10s interactive
+        // default, so grant the gateway's maximum here.
+        timeoutMs: MCP_GATEWAY_TOOL_TIMEOUT_MS,
         callerHeaders: req.headers,
       });
       const resultRecord = result.result && typeof result.result === "object" && !Array.isArray(result.result)

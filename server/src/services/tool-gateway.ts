@@ -6089,7 +6089,12 @@ export function createToolGatewayService(
           },
         );
       }
-      if (error instanceof Error && error.name === "AbortError") {
+      // Our own deadline aborting the call can surface from the body stream as
+      // a generic stream error rather than an AbortError, so trust the signal.
+      if (
+        controller.signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
         await markRemoteConnectionHealth(
           connection,
           "error",
