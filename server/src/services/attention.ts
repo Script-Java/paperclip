@@ -1671,7 +1671,11 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
           status: heartbeatRuns.status,
           error: heartbeatRuns.error,
           errorCode: heartbeatRuns.errorCode,
-          contextSnapshot: heartbeatRuns.contextSnapshot,
+          // Only the issue/task ids are read. Every exhausted run in history is
+          // loaded (once per matching event), so the whole context_snapshot
+          // here grew the retention sweep's feed build past the heap limit.
+          runIssueId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`,
+          runTaskId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'taskId'`,
           createdAt: heartbeatRuns.createdAt,
           updatedAt: heartbeatRuns.updatedAt,
           finishedAt: heartbeatRuns.finishedAt,
@@ -1696,7 +1700,7 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
         if (!latestExhaustedByRunId.has(row.id)) latestExhaustedByRunId.set(row.id, row);
       }
       const failedRows = [...latestExhaustedByRunId.values()];
-      const failedIssueIds = failedRows.map((row) => readRunIssueId(row.contextSnapshot));
+      const failedIssueIds = failedRows.map((row) => readRunIssueId({ issueId: row.runIssueId, taskId: row.runTaskId }));
       const failedAgentIds = [...new Set(failedRows.map((row) => row.agentId))];
       const oldestFailedRunCreatedAt = failedRows.reduce<Date | null>((oldest, row) => {
         if (!oldest || row.createdAt < oldest) return row.createdAt;
@@ -1737,7 +1741,7 @@ export function attentionService(db: Db, serviceOptions: AttentionServiceOptions
         }
       }
       for (const run of failedRows) {
-        const issueId = readRunIssueId(run.contextSnapshot);
+        const issueId = readRunIssueId({ issueId: run.runIssueId, taskId: run.runTaskId });
         const runKey = `${run.agentId}:${issueId ?? ""}`;
         const hasNewerRun = (latestRunCreatedAtByKey.get(runKey)?.getTime() ?? 0) > run.createdAt.getTime();
         if (hasNewerRun) continue;
